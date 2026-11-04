@@ -153,6 +153,12 @@ Ou execute a bateria completa (Etapa 1 + Etapa 2) com um único comando:
 make smoke
 ```
 
+### Evidências Visuais do Cluster em Execução (ArgoCD + Gateway API)
+
+![ArgoCD UI — Applications devops-api-dev e devops-api-staging Synced e Healthy](docs/screenshots/argocd-applications-synced.png)
+
+![Swagger UI da DevOps API (dev) servida pelo Envoy Gateway no cluster Kind](docs/screenshots/gateway-api-swagger.png)
+
 ---
 
 ## 5. Segredos Fora do Git (SOPS + External Secrets)
@@ -254,8 +260,9 @@ Em vez de o CI fazer commit direto na branch `main`, a atualização de imagem s
 2. **Neste repositório ([`.github/workflows/update-image-pr.yml`](.github/workflows/update-image-pr.yml)):** também é possível disparar a abertura de PR via `repository_dispatch` ou manualmente (`workflow_dispatch`) informando a tag e o ambiente (`dev` ou `staging`).
 3. **Validação na PR:** antes do merge, o workflow [`ci.yml`](.github/workflows/ci.yml) valida `helm lint`, schemas Kubernetes com `kubeconform`, presença de probes/limites e ausência de segredos. Após o merge na `main`, o ArgoCD detecta o novo commit e atualiza o cluster automaticamente.
 
-* **Evidência do CI (GitHub Actions):**
-  [Run #40609476728 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/runs/40609476728) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
+* **Evidência do CI (GitHub Actions) e de PR Automatizada de Imagem:**
+  - **Run Verde do CI:** [Run #40609476728 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/runs/40609476728) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
+  - **PR de Atualização de Tag (`open-image-pr.sh`):** [PR #1 (`chore(dev): update image tag to sha-8fe8a5ed30a29a4e0302d06e3fe120a9e00c6f75`)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/pull/1).
 
 ---
 
@@ -337,3 +344,16 @@ Valores de referência em **outubro/2026** (sem impostos):
 3. **Análise Automatizada no Canary (`AnalysisTemplate` no Argo Rollouts):** o `Rollout` em `staging` faz pausas temporizadas (`pause: 15s`) nos passos de `20%` e `50%`. Conectando um `AnalysisTemplate` ao Prometheus (Projeto 4), o Rollout promoveria ou faria rollback automático com base na taxa de erros `5xx` e na latência `p95`.
 4. **TLS Automático na Gateway API com `cert-manager`:** hoje o listener do `Gateway` opera em HTTP na porta `80` (`localhost:8080`). Adicionar o `cert-manager` emitindo certificados (autoassinados localmente ou Let's Encrypt em produção) no listener HTTPS (`8443 -> 30443`) fecharia a criptografia em trânsito na borda.
 5. **Políticas de Admissão com Kyverno ou OPA Gatekeeper:** além de validar probes e `requests/limits` no CI, um controlador de admissão no cluster bloquearia qualquer workload fora do padrão mesmo se aplicado fora do fluxo GitOps.
+
+---
+
+## 14. Série Completa do Portfólio DevOps & SRE (5 Projetos Conectados)
+
+| # | Projeto | Repositório Oficial | CI Status |
+|:---:|---|---|---|
+| **1** | **Containerização & Pipeline CI/CD (DevSecOps)** | [`Gabriel-V-Mendes/Containeriza-oPipelineCICD`](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD) | [![CI/CD](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD/actions/workflows/ci.yml) |
+| **2** | **Infraestrutura AWS com OpenTofu & Floci (FinOps + OIDC)** | [`Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack`](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack) | [![Infra CI/CD](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack/actions/workflows/infra-ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack/actions/workflows/infra-ci.yml) |
+| **3** | **GitOps & Kubernetes (ArgoCD + Helm + Gateway API + SOPS/ESO)** *(este repo)* | [`Gabriel-V-Mendes/GitOps_Kubernets`](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets) | [![Validate Manifests & Security](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml) |
+| **4** | **Observabilidade & SRE (Prometheus + Grafana Alloy + Loki + Alertmanager)** | [`Gabriel-V-Mendes/Observabilidade`](https://github.com/Gabriel-V-Mendes/Observabilidade) | [![Observability CI](https://github.com/Gabriel-V-Mendes/Observabilidade/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/Observabilidade/actions/workflows/ci.yml) |
+| **5** | **Platform Engineering & Golden Path (IDP + Reusable Workflows + TF Modules)** | [`Gabriel-V-Mendes/platform-engineering`](https://github.com/Gabriel-V-Mendes/platform-engineering) | [![Platform CI](https://github.com/Gabriel-V-Mendes/platform-engineering/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/platform-engineering/actions/workflows/ci.yml) |
+
