@@ -29,7 +29,7 @@ kind delete cluster --name devops-lab
 ```
 Internamente, o `bootstrap.sh` executa:
 1. `kind create cluster --config infrastructure/kind/kind-config.yaml` (mapeando `127.0.0.1:8080 -> NodePort 30080`).
-2. Carrega a imagem da API do Projeto 1 (`ghcr.io/gabriel-v-mendes/containeriza-opipelinecicd:sha-...`) no Kind.
+2. Carrega a imagem da API do Projeto 1 (`ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-...`) no Kind.
 3. Instala o **Envoy Gateway** (`v1.3.0`) e aplica `infrastructure/gateway/envoy-gateway.yaml` (`EnvoyProxy`, `GatewayClass` e `Gateway`).
 4. Instala o **External Secrets Operator**, descriptografa em memória o segredo semente com **SOPS + age** (`infrastructure/secrets/postgres-source-secret.sops.yaml`) e aplica o `ClusterSecretStore`.
 5. Instala o **ArgoCD** no namespace `argocd`.

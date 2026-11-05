@@ -11,7 +11,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Gabriel-V-Mendes/GitOps_Kubernets.git
+    repoURL: https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes.git
     targetRevision: HEAD
     path: manifests/helm/devops-api
     helm:

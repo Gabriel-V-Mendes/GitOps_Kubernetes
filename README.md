@@ -1,8 +1,8 @@
 # Projeto 3 · GitOps em Kubernetes com ArgoCD, Gateway API e External Secrets
 
-[![Validate Manifests & Security](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml/badge.svg)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml)
+[![Validate Manifests & Security](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/workflows/ci.yml)
 
-Repositório dedicado de **manifests Kubernetes e GitOps** para a [**API do Projeto 1 (`Containeriza-oPipelineCICD`)**](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD) (FastAPI + PostgreSQL 17, imagem non-root `UID 10001`). O estado desejado dos ambientes **`dev`** e **`staging`** vive exclusivamente neste repositório e é reconciliado continuamente dentro de um cluster **`kind`** pelo **ArgoCD**.
+Repositório dedicado de **manifests Kubernetes e GitOps** para a [**API do Projeto 1 (`ContainerizacaoPipelineCICD`)**](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD) (FastAPI + PostgreSQL 17, imagem non-root `UID 10001`). O estado desejado dos ambientes **`dev`** e **`staging`** vive exclusivamente neste repositório e é reconciliado continuamente dentro de um cluster **`kind`** pelo **ArgoCD**.
 
 ---
 
@@ -10,7 +10,7 @@ Repositório dedicado de **manifests Kubernetes e GitOps** para a [**API do Proj
 
 | Antes (Versão Antiga) | Depois (Esta Versão) | Por quê |
 |---|---|---|
-| Aplicação HTML estática (`nginx:alpine`) misturada no mesmo repositório | **Repositório separado de manifests** consumindo a imagem real da **API do Projeto 1** (`ghcr.io/gabriel-v-mendes/containeriza-opipelinecicd:sha-...`) | Isola o ciclo de vida de código (CI) do estado declarativo do cluster (CD/GitOps) e evita loops de trigger |
+| Aplicação HTML estática (`nginx:alpine`) misturada no mesmo repositório | **Repositório separado de manifests** consumindo a imagem real da **API do Projeto 1** (`ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-...`) | Isola o ciclo de vida de código (CI) do estado declarativo do cluster (CD/GitOps) e evita loops de trigger |
 | **Ingress NGINX** (`networking.k8s.io/v1/Ingress`) + configs órfãs do Istio | Começa com **`kubectl port-forward`** e expõe via **Gateway API (`gateway.networking.k8s.io/v1`)** usando **Envoy Gateway** | O Ingress NGINX foi aposentado pelo Kubernetes SIG Network. A Gateway API separa responsabilidades (`GatewayClass` / `Gateway` / `HTTPRoute`) e suporta divisão de tráfego nativa |
 | `templates/secret.yaml` com `API_TOKEN` em Base64 commitado no Git | **Zero segredos em texto puro no Git:** **SOPS (`age`)** criptografa a semente e o **External Secrets Operator (ESO)** sintetiza o `Secret` com `DATABASE_URL` | Base64 não é criptografia. Com SOPS + ESO, nenhum `kind: Secret` em texto puro existe em `manifests/` (validado por CI e Gitleaks) |
 | Dependência implícita de subcharts externos | **Zero charts da Bitnami:** `StatefulSet` próprio do PostgreSQL 17 (`postgres:17-alpine` fixado por digest) dentro do Helm chart | A Bitnami restringiu seu catálogo gratuito de imagens e charts de terceiros adicionam complexidade opaca |
@@ -23,12 +23,12 @@ Repositório dedicado de **manifests Kubernetes e GitOps** para a [**API do Proj
 
 ```mermaid
 flowchart LR
-    subgraph Repo1["Repo 1: Containeriza-oPipelineCICD (Código)"]
+    subgraph Repo1["Repo 1: ContainerizacaoPipelineCICD (Código)"]
         Code["FastAPI + Pytest + Trivy"] --> GHCR[("GHCR\nsha-<commit>")]
         Code --> PRBot["Job gitops-pr"]
     end
 
-    subgraph Repo2["Repo 2: GitOps_Kubernets (Manifests)"]
+    subgraph Repo2["Repo 2: GitOps_Kubernetes (Manifests)"]
         PRBot -->|"Abre PR atualizando tag"| Values["values-dev.yaml\nvalues-staging.yaml"]
         Values --> CIManifests["CI: helm lint + kubeconform + gitleaks"]
     end
@@ -256,13 +256,13 @@ Esse comando executa em sequência:
 
 Em vez de o CI fazer commit direto na branch `main`, a atualização de imagem segue o fluxo de Pull Request:
 
-1. **No repositório da API ([`Containeriza-oPipelineCICD/.github/workflows/ci.yml`](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD/blob/main/.github/workflows/ci.yml)):** após o job `Build, Scan & Push` publicar a imagem `ghcr.io/gabriel-v-mendes/containeriza-opipelinecicd:sha-<commit>`, o job `gitops-pr` faz checkout deste repositório de manifests e executa `./scripts/open-image-pr.sh sha-<commit> dev`.
+1. **No repositório da API ([`ContainerizacaoPipelineCICD/.github/workflows/ci.yml`](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD/blob/main/.github/workflows/ci.yml)):** após o job `Build, Scan & Push` publicar a imagem `ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-<commit>`, o job `gitops-pr` faz checkout deste repositório de manifests e executa `./scripts/open-image-pr.sh sha-<commit> dev`.
 2. **Neste repositório ([`.github/workflows/update-image-pr.yml`](.github/workflows/update-image-pr.yml)):** também é possível disparar a abertura de PR via `repository_dispatch` ou manualmente (`workflow_dispatch`) informando a tag e o ambiente (`dev` ou `staging`).
 3. **Validação na PR:** antes do merge, o workflow [`ci.yml`](.github/workflows/ci.yml) valida `helm lint`, schemas Kubernetes com `kubeconform`, presença de probes/limites e ausência de segredos. Após o merge na `main`, o ArgoCD detecta o novo commit e atualiza o cluster automaticamente.
 
 * **Evidência do CI (GitHub Actions) e de PR Automatizada de Imagem:**
-  - **Run Verde do CI:** [Run #40609476728 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/runs/40609476728) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
-  - **PR de Atualização de Tag (`open-image-pr.sh`):** [PR #1 (`chore(dev): update image tag to sha-8fe8a5ed30a29a4e0302d06e3fe120a9e00c6f75`)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/pull/1).
+  - **Run Verde do CI:** [Run #41867699371 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/runs/41867699371) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
+  - **PR de Atualização de Tag (`open-image-pr.sh`):** [PR #1 (`chore(dev): update image tag to sha-8fe8a5ed30a29a4e0302d06e3fe120a9e00c6f75`)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/pull/1).
 
 ---
 
@@ -351,9 +351,9 @@ Valores de referência em **outubro/2026** (sem impostos):
 
 | # | Projeto | Repositório Oficial | CI Status |
 |:---:|---|---|---|
-| **1** | **Containerização & Pipeline CI/CD (DevSecOps)** | [`Gabriel-V-Mendes/Containeriza-oPipelineCICD`](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD) | [![CI/CD](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/Containeriza-oPipelineCICD/actions/workflows/ci.yml) |
-| **2** | **Infraestrutura AWS com OpenTofu & Floci (FinOps + OIDC)** | [`Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack`](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack) | [![Infra CI/CD](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack/actions/workflows/infra-ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-terraform-localstack/actions/workflows/infra-ci.yml) |
-| **3** | **GitOps & Kubernetes (ArgoCD + Helm + Gateway API + SOPS/ESO)** *(este repo)* | [`Gabriel-V-Mendes/GitOps_Kubernets`](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets) | [![Validate Manifests & Security](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernets/actions/workflows/ci.yml) |
+| **1** | **Containerização & Pipeline CI/CD (DevSecOps)** | [`Gabriel-V-Mendes/ContainerizacaoPipelineCICD`](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD) | [![CI/CD](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD/actions/workflows/ci.yml) |
+| **2** | **Infraestrutura AWS com OpenTofu & Floci (FinOps + OIDC)** | [`Gabriel-V-Mendes/infraestrutura-aws-opentofu-floci`](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-opentofu-floci) | [![Infra CI/CD](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-opentofu-floci/actions/workflows/infra-ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/infraestrutura-aws-opentofu-floci/actions/workflows/infra-ci.yml) |
+| **3** | **GitOps & Kubernetes (ArgoCD + Helm + Gateway API + SOPS/ESO)** *(este repo)* | [`Gabriel-V-Mendes/GitOps_Kubernetes`](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes) | [![Validate Manifests & Security](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/workflows/ci.yml) |
 | **4** | **Observabilidade & SRE (Prometheus + Grafana Alloy + Loki + Alertmanager)** | [`Gabriel-V-Mendes/Observabilidade`](https://github.com/Gabriel-V-Mendes/Observabilidade) | [![Observability CI](https://github.com/Gabriel-V-Mendes/Observabilidade/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/Observabilidade/actions/workflows/ci.yml) |
 | **5** | **Platform Engineering & Golden Path (IDP + Reusable Workflows + TF Modules)** | [`Gabriel-V-Mendes/platform-engineering`](https://github.com/Gabriel-V-Mendes/platform-engineering) | [![Platform CI](https://github.com/Gabriel-V-Mendes/platform-engineering/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Gabriel-V-Mendes/platform-engineering/actions/workflows/ci.yml) |
 

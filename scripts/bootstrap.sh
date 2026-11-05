@@ -14,7 +14,7 @@ set -euo pipefail
 CLUSTER_NAME="devops-lab"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_REPO_DIR="$(cd "$ROOT_DIR/.." && pwd)"
-API_IMAGE="ghcr.io/gabriel-v-mendes/containeriza-opipelinecicd:sha-74f3e26566a1c1dc9033d18d9b6f2beddfc7eb8c"
+API_IMAGE="ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-74f3e26566a1c1dc9033d18d9b6f2beddfc7eb8c"
 POSTGRES_IMAGE="postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 
 echo "=================================================================="
@@ -83,7 +83,7 @@ else
   kubectl create secret generic postgres-source-secret \
     --namespace external-secrets \
     --from-literal=username=devops \
-    --from-literal=password=devops-gitops-strong-password-2026 \
+    --from-literal=password="$(openssl rand -hex 20)" \
     --from-literal=database=devops \
     --dry-run=client -o yaml | kubectl apply -f -
 fi
