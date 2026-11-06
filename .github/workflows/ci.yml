@@ -83,14 +83,27 @@ jobs:
             grep -q "kind: ExternalSecret" "$out"
           done
 
-      - name: Validar schemas Kubernetes com kubeconform
-        run: |
-          docker run --rm -v /tmp:/rendered ghcr.io/yannh/kubeconform:v0.6.7 \
-            -strict -ignore-missing-schemas -summary \
-            /rendered/rendered-dev.yaml /rendered/rendered-staging.yaml
-
       - name: Validar kustomization das Applications do ArgoCD
         run: |
           kubectl kustomize manifests/argocd > /tmp/argocd-apps.yaml
           grep -q "selfHeal: true" /tmp/argocd-apps.yaml
           grep -q "prune: true" /tmp/argocd-apps.yaml
+
+      - name: Validar schemas Kubernetes e CRDs reais (HTTPRoute, ExternalSecret, Rollout, Application) com kubeconform
+        run: |
+          grep -q "kind: Rollout" /tmp/rendered-staging.yaml
+          docker run --rm \
+            -v /tmp:/rendered:ro \
+            -v "$PWD:/repo:ro" \
+            ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict \
+            -summary \
+            -verbose \
+            -schema-location default \
+            -schema-location '/repo/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /rendered/rendered-dev.yaml \
+            /rendered/rendered-staging.yaml \
+            /rendered/argocd-apps.yaml \
+            /repo/infrastructure/gateway/envoy-gateway.yaml \
+            /repo/infrastructure/external-secrets/cluster-secret-store.yaml

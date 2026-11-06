@@ -12,7 +12,7 @@ Repositório dedicado de **manifests Kubernetes e GitOps** para a [**API do Proj
 |---|---|---|
 | Aplicação HTML estática (`nginx:alpine`) misturada no mesmo repositório | **Repositório separado de manifests** consumindo a imagem real da **API do Projeto 1** (`ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-...`) | Isola o ciclo de vida de código (CI) do estado declarativo do cluster (CD/GitOps) e evita loops de trigger |
 | **Ingress NGINX** (`networking.k8s.io/v1/Ingress`) + configs órfãs do Istio | Começa com **`kubectl port-forward`** e expõe via **Gateway API (`gateway.networking.k8s.io/v1`)** usando **Envoy Gateway** | O Ingress NGINX foi aposentado pelo Kubernetes SIG Network. A Gateway API separa responsabilidades (`GatewayClass` / `Gateway` / `HTTPRoute`) e suporta divisão de tráfego nativa |
-| `templates/secret.yaml` com `API_TOKEN` em Base64 commitado no Git | **Zero segredos em texto puro no Git:** **SOPS (`age`)** criptografa a semente e o **External Secrets Operator (ESO)** sintetiza o `Secret` com `DATABASE_URL` | Base64 não é criptografia. Com SOPS + ESO, nenhum `kind: Secret` em texto puro existe em `manifests/` (validado por CI e Gitleaks) |
+| `templates/secret.yaml` com `API_TOKEN` em Base64 commitado no Git | **Zero segredos reais; falsos positivos históricos listados no `.gitleaksignore`:** **SOPS (`age`)** criptografa a semente e o **External Secrets Operator (ESO)** sintetiza o `Secret` com `DATABASE_URL` lendo um `Secret` do próprio cluster (**padrão de laboratório**, não um gestor externo de segredos) | Base64 não é criptografia. Com SOPS + ESO, nenhum `kind: Secret` em texto puro existe em `manifests/` (validado por CI e Gitleaks) |
 | Dependência implícita de subcharts externos | **Zero charts da Bitnami:** `StatefulSet` próprio do PostgreSQL 17 (`postgres:17-alpine` fixado por digest) dentro do Helm chart | A Bitnami restringiu seu catálogo gratuito de imagens e charts de terceiros adicionam complexidade opaca |
 | `kind: Rollout` obrigatório sem `Deployment` e sem probes | **`Deployment` padrão** com `livenessProbe` (`/health`), `readinessProbe` (`/health/ready`) e `resources` (`requests`/`limits`). **Argo Rollouts** virou **desafio opcional** (`rollout.enabled: true`) | Canário real exige divisão percentual de tráfego (via pesos na `HTTPRoute`); sem isso, o Rollout apenas escala réplicas |
 | CI dava `git push` direto na `main` | **Fluxo via Pull Request:** o pipeline abre uma PR atualizando `image.tag` em `values-dev.yaml`, que passa por validação antes do merge | Preserva governança, revisão de código e checks obrigatórios (`helm lint`, `kubeconform`, `gitleaks`) |
@@ -47,19 +47,23 @@ flowchart LR
 
 ```text
 .
-├── .github/workflows/
-│   ├── ci.yml                              # Gitleaks + proíbe kind:Secret + helm lint + kubeconform
-│   └── update-image-pr.yml                 # Abre PR automatizado atualizando a tag da imagem
+├── .github/
+│   ├── dependabot.yml                      # Atualização semanal dos SHAs das GitHub Actions
+│   └── workflows/
+│       ├── ci.yml                          # Gitleaks + proíbe kind:Secret + helm lint + kubeconform (CRDs reais)
+│       └── update-image-pr.yml             # Abre PR automatizado atualizando a tag da imagem
+├── .gitleaksignore                         # Falsos positivos históricos de commits legados já removidos
 ├── .sops.yaml                              # Regra de criptografia AES-256-GCM (age) para data/stringData
-├── Makefile                                # Atalhos: bootstrap, restore, smoke, drift, lint, secrets
+├── Makefile                                # Atalhos: bootstrap, restore, smoke, drift, canary, lint, secrets
+├── schemas/                                # JSON Schemas reais dos CRDs (HTTPRoute, ExternalSecret, Rollout, Application...)
 ├── infrastructure/
 │   ├── kind/kind-config.yaml               # Cluster Kind mapeando 127.0.0.1:8080 -> NodePort 30080
 │   ├── gateway/envoy-gateway.yaml          # EnvoyProxy (NodePort 30080) + GatewayClass + Gateway
-│   ├── external-secrets/                   # RBAC mínimo + ClusterSecretStore (k8s-secret-store)
+│   ├── external-secrets/                   # RBAC mínimo + ClusterSecretStore (provider kubernetes — padrão de lab)
 │   ├── secrets/postgres-source-secret.sops.yaml # Semente criptografada com SOPS + age (ENC[AES256_GCM...])
-│   ├── argocd/namespace.yaml               # Namespace do ArgoCD
+│   ├── argocd/namespace.yaml               # Namespace do ArgoCD (instalado na versão explícita v3.5.6)
 │   ├── monitoring/                         # Stack opcional Prometheus/Grafana
-│   └── rollouts/namespace.yaml             # Namespace opcional para Argo Rollouts
+│   └── rollouts/namespace.yaml             # Namespace e plugin Gateway API v0.17.0 para Argo Rollouts v1.7.2
 ├── manifests/
 │   ├── argocd/
 │   │   ├── application-dev.yaml            # Application dev (auto-sync, prune: true, selfHeal: true)
@@ -116,7 +120,11 @@ Pré-requisitos: `docker`, `kind`, `kubectl`, `helm`, `sops` e `age`.
 make bootstrap     # ou: ./scripts/bootstrap.sh
 ```
 
-O script cria o cluster `kind`, carrega a imagem da API do Projeto 1, instala o **Envoy Gateway**, o **External Secrets Operator** (descriptografando a semente com **SOPS + age** em memória), o **ArgoCD** e aplica as `Application`s de **`dev`** e **`staging`**.
+O script cria o cluster `kind`, carrega a imagem da API do Projeto 1 e instala toda a pilha com **versões explicitamente fixadas** para garantir reprodutibilidade:
+- **Envoy Gateway (`v1.3.0`)** via Helm OCI (`oci://docker.io/envoyproxy/gateway-helm --version v1.3.0`);
+- **External Secrets Operator (`2.14.0`)** via Helm (`external-secrets/external-secrets --version 2.14.0`), descriptografando a semente com **SOPS + age** em memória;
+- **Argo Rollouts (`v1.7.2`)** + **Gateway API Traffic Router Plugin (`v0.17.0`)** via URLs de release fixadas;
+- **ArgoCD (`v3.5.6`)** via manifesto oficial com tag explícita (`https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.6/manifests/install.yaml`), aplicando em seguida as `Application`s de **`dev`** e **`staging`**.
 
 ### Etapa 1: Acesso inicial via `kubectl port-forward`
 
@@ -161,13 +169,20 @@ make smoke
 
 ---
 
-## 5. Segredos Fora do Git (SOPS + External Secrets)
+## 5. Segredos Fora do Git (SOPS + External Secrets — Padrão de Laboratório)
 
-Nenhum arquivo `kind: Secret` em texto puro ou Base64 existe nos manifests:
+**Status de segredos no repositório:** **zero segredos reais; falsos positivos históricos listados no [`.gitleaksignore`](.gitleaksignore)**.
+Os 9 fingerprints registrados no `.gitleaksignore` correspondem exclusivamente a certificados de exemplo do pacote `istio-1.30.3/samples/` (commit `5563437`) e a um secret fictício de demonstração da primeira versão do chart (commit `2ed3eba`), ambos já removidos da árvore do repositório, permitindo que o **Gitleaks** audite todo o histórico (`fetch-depth: 0`) e bloqueie qualquer vazamento novo.
 
-1. **No Git (`infrastructure/secrets/postgres-source-secret.sops.yaml`):** os campos sensíveis (`username`, `password`, `database`) são criptografados com **Mozilla SOPS + age (`AES-256-GCM`)**, conforme definido em [`.sops.yaml`](.sops.yaml).
-2. **No Cluster (`ExternalSecret`):** o template [`externalsecret.yaml`](manifests/helm/devops-api/templates/externalsecret.yaml) instrui o **External Secrets Operator** a buscar as credenciais no `ClusterSecretStore` e montar automaticamente a string `DATABASE_URL` (`postgresql+psycopg://...`) nos Secrets `devops-api-dev-db-secret` (em `dev`) e `devops-api-staging-db-secret` (em `staging`).
-3. **Verificação no CI:** o job `Secret Scan & Policy` em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda o **Gitleaks** em todo o histórico e falha imediatamente se encontrar qualquer `kind: Secret` dentro de `manifests/`.
+> [!IMPORTANT]
+> **Padrão de Laboratório vs. Gestor Externo de Segredos em Produção:**
+> Neste repositório, o **External Secrets Operator (ESO)** utiliza um `ClusterSecretStore` com o `provider.kubernetes` ([`infrastructure/external-secrets/cluster-secret-store.yaml`](infrastructure/external-secrets/cluster-secret-store.yaml)) que **lê um `Secret` semente (`postgres-source-secret`) do próprio cluster** (no namespace isolado `external-secrets`). **Isso é um padrão de laboratório local, não um gestor externo de segredos.** Essa escolha permite que qualquer avaliador execute `make bootstrap` localmente no `kind` sem precisar de conta paga na nuvem (AWS/GCP) ou de um servidor Vault externo, enquanto exercita o CRD real `ExternalSecret` e a montagem dinâmica de templates. **Em produção**, o template [`externalsecret.yaml`](manifests/helm/devops-api/templates/externalsecret.yaml) da aplicação permanece inalterado e apenas o `ClusterSecretStore` é apontado para um gestor externo real (**AWS Secrets Manager**, **GCP Secret Manager** ou **HashiCorp Vault**) autenticado via IAM Roles for Service Accounts (IRSA) / Workload Identity.
+
+Como o fluxo opera no laboratório:
+1. **No Git (`infrastructure/secrets/postgres-source-secret.sops.yaml`):** os campos sensíveis (`username`, `password`, `database`) ficam criptografados com **Mozilla SOPS + age (`AES-256-GCM`)**, conforme definido em [`.sops.yaml`](.sops.yaml). Nenhum arquivo `kind: Secret` em texto puro ou Base64 existe em `manifests/`.
+2. **No Bootstrap (`scripts/bootstrap.sh`):** o comando `sops -d ... | kubectl apply -f -` descriptografa a semente apenas em memória e cria o Secret `postgres-source-secret` no namespace `external-secrets` (ou gera uma senha aleatória via `openssl rand -hex 20` caso a chave privada `age` não esteja presente na máquina).
+3. **No Cluster (`ExternalSecret`):** o template [`externalsecret.yaml`](manifests/helm/devops-api/templates/externalsecret.yaml) instrui o **External Secrets Operator** a ler o `ClusterSecretStore` (`k8s-secret-store`) e sintetizar automaticamente os Secrets `devops-api-dev-db-secret` (em `dev`) e `devops-api-staging-db-secret` (em `staging`) com a string `DATABASE_URL` (`postgresql+psycopg://...`).
+4. **Verificação no CI:** o job `Secret Scan & Policy` em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda o **Gitleaks** em todo o histórico (`fetch-depth: 0`) e falha imediatamente se encontrar qualquer `kind: Secret` dentro de `manifests/`.
 
 ---
 
@@ -258,7 +273,7 @@ Em vez de o CI fazer commit direto na branch `main`, a atualização de imagem s
 
 1. **No repositório da API ([`ContainerizacaoPipelineCICD/.github/workflows/ci.yml`](https://github.com/Gabriel-V-Mendes/ContainerizacaoPipelineCICD/blob/main/.github/workflows/ci.yml)):** após o job `Build, Scan & Push` publicar a imagem `ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-<commit>`, o job `gitops-pr` faz checkout deste repositório de manifests e executa `./scripts/open-image-pr.sh sha-<commit> dev`.
 2. **Neste repositório ([`.github/workflows/update-image-pr.yml`](.github/workflows/update-image-pr.yml)):** também é possível disparar a abertura de PR via `repository_dispatch` ou manualmente (`workflow_dispatch`) informando a tag e o ambiente (`dev` ou `staging`).
-3. **Validação na PR:** antes do merge, o workflow [`ci.yml`](.github/workflows/ci.yml) valida `helm lint`, schemas Kubernetes com `kubeconform`, presença de probes/limites e ausência de segredos. Após o merge na `main`, o ArgoCD detecta o novo commit e atualiza o cluster automaticamente.
+3. **Validação na PR (incluindo CRDs reais no `kubeconform`):** antes do merge, o workflow [`ci.yml`](.github/workflows/ci.yml) (com todas as Actions fixadas por commit SHA) executa `helm lint`, verifica probes/limites, garante ausência de segredos e valida todos os **26 recursos renderizados e de infraestrutura** no **`kubeconform -strict` sem `-ignore-missing-schemas` (`Skipped: 0`)**, validando `HTTPRoute`, `ExternalSecret`, `Rollout`, `Application`, `Gateway`, `GatewayClass`, `EnvoyProxy` e `ClusterSecretStore` contra seus JSON Schemas reais versionados em [`schemas/`](schemas/). Após o merge na `main`, o ArgoCD detecta o novo commit e atualiza o cluster automaticamente.
 
 * **Evidência do CI (GitHub Actions) e de PR Automatizada de Imagem:**
   - **Run Verde do CI:** [Run #41867699371 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/runs/41867699371) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
@@ -317,7 +332,9 @@ Saída real da execução no ambiente `staging`:
 |---|---|---|
 | **2 repositórios separados** (Código no Projeto 1 vs Manifests aqui) | Monorepo (código + manifests juntos) | Evita loops infinitos de CI e isola permissões: o ArgoCD só lê o repo de manifests. Em troca, exige automação (`open-image-pr.sh`) para abrir PR de atualização de tag entre repositórios |
 | **Gateway API (`Envoy Gateway v1.3.0`)** com `EnvoyProxy` NodePort `30080` | Ingress NGINX legado, Traefik, Cilium, Istio | O Ingress NGINX foi aposentado pelo SIG Network. O Envoy Gateway é padrão CNCF, consome ~110 MB de RAM e permite fixar `NodePort 30080` declarativamente para casar com o `extraPortMappings` do `kind` sem precisar de MetalLB |
-| **SOPS (`age`) + External Secrets Operator (ESO)** | `kind: Secret` Base64, Sealed Secrets (Bitnami), Vault | Base64 não é criptografia. O SOPS criptografa a semente no Git (`AES-256-GCM`) e o ESO gera os Secrets dinamicamente com `template` (`DATABASE_URL`). Evita o Sealed Secrets (mantido pela Bitnami e acoplado à chave de um único cluster) |
+| **SOPS (`age`) + External Secrets Operator (ESO `2.14.0`) lendo Secret semente do cluster** | `kind: Secret` Base64 no Git, Sealed Secrets (Bitnami), Vault externo obrigatório | **Padrão de laboratório:** o `ClusterSecretStore` lê um `Secret` semente (`postgres-source-secret`, descriptografado em memória via SOPS) do próprio cluster, não sendo um gestor externo de segredos. Isso mantém o laboratório `kind` 100% reproduzível sem exigir conta AWS/GCP, enquanto valida o contrato real do `ExternalSecret`. Em produção, troca-se apenas o provider do `ClusterSecretStore` para AWS Secrets Manager / GCP SM / Vault |
+| **Versões explícitas no bootstrap (`ArgoCD v3.5.6`, `ESO 2.14.0`, `Envoy Gateway v1.3.0`, `Rollouts v1.7.2`) e Actions por SHA** | `stable/manifests/install.yaml`, Helm sem `--version` e tags móveis `@v4` | Garante reprodutibilidade determinística do cluster e protege o pipeline contra ataques de supply chain em tags mutáveis |
+| **Validação de CRDs no `kubeconform -strict` com schemas reais (`schemas/`)** | `kubeconform -ignore-missing-schemas` | Sem schemas dos CRDs, o `kubeconform` simplesmente ignorava `HTTPRoute`, `ExternalSecret` e `Rollout`. Com os schemas JSON versionados em `schemas/`, os 26 recursos são validados com `Skipped: 0` |
 | **`StatefulSet` próprio do PostgreSQL 17-alpine** no Helm chart | Subchart `bitnami/postgresql` | Elimina dependência do catálogo restrito da Bitnami e dá controle explícito sobre probes (`pg_isready`), `securityContext` e `PersistentVolumeClaim` |
 | **ArgoCD em modo Pull (`selfHeal: true` + `prune: true`)** | Deploy por Push (`kubectl apply` no GitHub Actions) | Credenciais de admin do cluster nunca saem do cluster e qualquer alteração manual (`kubectl scale/edit`) é revertida automaticamente em segundos |
 | **Argo Rollouts opcional (`rollout.enabled`)** integrado à Gateway API | `Rollout` obrigatório sem controlador de tráfego | Sem roteador HTTP que divida tráfego por peso (`weight`), um `Rollout` apenas escala réplicas. Com o plugin `argoproj-labs/gatewayAPI`, `staging` faz canário real (`80/20` → `50/50` → `100/0`) na `HTTPRoute` |

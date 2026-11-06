@@ -25,14 +25,21 @@ drift: ## Demonstra drift manual no cluster e o ArgoCD corrigindo (self-heal)
 canary: ## Demonstra o desafio opcional Argo Rollouts Canary (20% -> 50% -> 100%) na Gateway API
 	./scripts/demo-canary.sh
 
-lint: ## Valida o Helm chart (values-dev e values-staging) e kustomize do ArgoCD
+lint: ## Valida o Helm chart (values-dev e values-staging), kustomize do ArgoCD e schemas reais (incluindo CRDs) no kubeconform
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-dev.yaml
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-staging.yaml
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml --set rollout.enabled=true
-	helm template devops-api-dev $(CHART_DIR) -n dev -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-dev.yaml >/dev/null
-	helm template devops-api-staging $(CHART_DIR) -n staging -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-staging.yaml >/dev/null
-	kustomize build manifests/argocd >/dev/null
-	@echo "✅ Helm chart e manifests ArgoCD válidos!"
+	helm template devops-api-dev $(CHART_DIR) -n dev -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-dev.yaml > /tmp/rendered-dev.yaml
+	helm template devops-api-staging $(CHART_DIR) -n staging -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-staging.yaml > /tmp/rendered-staging.yaml
+	kubectl kustomize manifests/argocd > /tmp/argocd-apps.yaml
+	docker run --rm -v /tmp:/rendered:ro -v "$$PWD:/repo:ro" ghcr.io/yannh/kubeconform:v0.6.7 \
+		-strict -summary -verbose \
+		-schema-location default \
+		-schema-location '/repo/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+		-schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+		/rendered/rendered-dev.yaml /rendered/rendered-staging.yaml /rendered/argocd-apps.yaml \
+		/repo/infrastructure/gateway/envoy-gateway.yaml /repo/infrastructure/external-secrets/cluster-secret-store.yaml
+	@echo "✅ Helm chart, CRDs (HTTPRoute, ExternalSecret, Rollout, Application) e manifests ArgoCD válidos!"
 
 secrets: ## Verifica com Gitleaks que nenhum segredo em texto puro entrou no Git
 	docker run --rm -v "$$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose --exit-code 1

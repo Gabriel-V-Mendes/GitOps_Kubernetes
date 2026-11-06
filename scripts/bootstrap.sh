@@ -17,8 +17,14 @@ APP_REPO_DIR="$(cd "$ROOT_DIR/.." && pwd)"
 API_IMAGE="ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-74f3e26566a1c1dc9033d18d9b6f2beddfc7eb8c"
 POSTGRES_IMAGE="postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 
+# Versões explícitas de todos os controladores de infraestrutura (reprodutibilidade)
+ENVOY_GATEWAY_VERSION="v1.3.0"
+EXTERNAL_SECRETS_VERSION="2.14.0"
+ARGO_ROLLOUTS_VERSION="v1.7.2"
+ARGOCD_VERSION="v3.5.6"
+
 echo "=================================================================="
-echo "1/6 · Cluster Kind ($CLUSTER_NAME)"
+echo "1/7 · Cluster Kind ($CLUSTER_NAME)"
 echo "=================================================================="
 if ! kind get clusters | grep -qx "$CLUSTER_NAME"; then
   kind create cluster --config "$ROOT_DIR/infrastructure/kind/kind-config.yaml"
@@ -28,7 +34,7 @@ fi
 kubectl config use-context "kind-${CLUSTER_NAME}"
 
 echo "=================================================================="
-echo "2/6 · Pré-carregando imagens da API (Projeto 1) no Kind"
+echo "2/7 · Pré-carregando imagens da API (Projeto 1) no Kind"
 echo "=================================================================="
 if ! docker image inspect "$API_IMAGE" >/dev/null 2>&1; then
   if [ -f "$APP_REPO_DIR/Dockerfile" ]; then
@@ -42,11 +48,11 @@ fi
 kind load docker-image "$API_IMAGE" --name "$CLUSTER_NAME"
 
 echo "=================================================================="
-echo "3/6 · Gateway API + Envoy Gateway Controller (sem Ingress NGINX)"
+echo "3/7 · Gateway API + Envoy Gateway Controller ($ENVOY_GATEWAY_VERSION)"
 echo "=================================================================="
 if ! helm status eg -n envoy-gateway-system >/dev/null 2>&1; then
   helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
-    --version v1.3.0 \
+    --version "$ENVOY_GATEWAY_VERSION" \
     --namespace envoy-gateway-system \
     --create-namespace \
     --wait --timeout 5m
@@ -56,12 +62,13 @@ kubectl wait --for=condition=Programmed gateway/shared-gateway -n envoy-gateway-
 kubectl wait --for=condition=Ready pod -l gateway.envoyproxy.io/owning-gateway-name=shared-gateway -n envoy-gateway-system --timeout=120s
 
 echo "=================================================================="
-echo "4/6 · External Secrets Operator + SOPS (Segredos fora do Git)"
+echo "4/7 · External Secrets Operator ($EXTERNAL_SECRETS_VERSION) + SOPS"
 echo "=================================================================="
 helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&1 || true
 helm repo update external-secrets >/dev/null 2>&1
 if ! helm status external-secrets -n external-secrets >/dev/null 2>&1; then
   helm upgrade --install external-secrets external-secrets/external-secrets \
+    --version "$EXTERNAL_SECRETS_VERSION" \
     --namespace external-secrets \
     --create-namespace \
     --set installCRDs=true \
@@ -92,20 +99,20 @@ kubectl apply -f "$ROOT_DIR/infrastructure/external-secrets/cluster-secret-store
 kubectl wait --for=condition=Ready clustersecretstore/k8s-secret-store --timeout=60s
 
 echo "=================================================================="
-echo "5/7 · Argo Rollouts + Gateway API Plugin (Desafio Opcional Canary)"
+echo "5/7 · Argo Rollouts ($ARGO_ROLLOUTS_VERSION) + Gateway API Plugin"
 echo "=================================================================="
 kubectl apply -f "$ROOT_DIR/infrastructure/rollouts/namespace.yaml"
 kubectl apply -n argo-rollouts \
-  -f https://github.com/argoproj/argo-rollouts/releases/download/v1.7.2/install.yaml
+  -f "https://github.com/argoproj/argo-rollouts/releases/download/${ARGO_ROLLOUTS_VERSION}/install.yaml"
 kubectl apply -f "$ROOT_DIR/infrastructure/rollouts/namespace.yaml"
 kubectl rollout status deployment/argo-rollouts -n argo-rollouts --timeout=120s
 
 echo "=================================================================="
-echo "6/7 · ArgoCD (GitOps Controller)"
+echo "6/7 · ArgoCD ($ARGOCD_VERSION — GitOps Controller)"
 echo "=================================================================="
 kubectl apply -f "$ROOT_DIR/infrastructure/argocd/namespace.yaml"
 kubectl apply -n argocd --server-side --force-conflicts \
-  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
 echo "Aguardando pods do ArgoCD ficarem prontos..."
 kubectl rollout status deployment/argocd-server -n argocd --timeout=180s

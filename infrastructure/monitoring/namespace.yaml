@@ -1,9 +1,10 @@
 # Monitoring Stack (Futuro)
 # Configuração do Prometheus + Grafana para observabilidade do cluster
 #
-# Instalação via Helm:
+# Instalação via Helm (com versão fixada):
 #   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 #   helm install monitoring prometheus-community/kube-prometheus-stack \
+#     --version 69.8.2 \
 #     --namespace monitoring --create-namespace
 #
 # Acesso Grafana:

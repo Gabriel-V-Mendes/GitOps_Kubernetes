@@ -31,9 +31,10 @@ Internamente, o `bootstrap.sh` executa:
 1. `kind create cluster --config infrastructure/kind/kind-config.yaml` (mapeando `127.0.0.1:8080 -> NodePort 30080`).
 2. Carrega a imagem da API do Projeto 1 (`ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-...`) no Kind.
 3. Instala o **Envoy Gateway** (`v1.3.0`) e aplica `infrastructure/gateway/envoy-gateway.yaml` (`EnvoyProxy`, `GatewayClass` e `Gateway`).
-4. Instala o **External Secrets Operator**, descriptografa em memória o segredo semente com **SOPS + age** (`infrastructure/secrets/postgres-source-secret.sops.yaml`) e aplica o `ClusterSecretStore`.
-5. Instala o **ArgoCD** no namespace `argocd`.
-6. Aplica `kubectl apply -k manifests/argocd` (`devops-api-dev` e `devops-api-staging`).
+4. Instala o **External Secrets Operator** (`2.14.0`), descriptografa em memória o segredo semente com **SOPS + age** (`infrastructure/secrets/postgres-source-secret.sops.yaml`) e aplica o `ClusterSecretStore`.
+5. Instala o **Argo Rollouts** (`v1.7.2`) com o plugin oficial de Gateway API (`v0.17.0`).
+6. Instala o **ArgoCD** (`v3.5.6`) no namespace `argocd`.
+7. Aplica `kubectl apply -k manifests/argocd` (`devops-api-dev` e `devops-api-staging`).
 
 ### 3. Validar a restauração completa (`port-forward` + Gateway API)
 ```bash

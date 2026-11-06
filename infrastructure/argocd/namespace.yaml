@@ -1,8 +1,8 @@
 # Namespace do ArgoCD (controlador GitOps).
-# Instalação oficial (manifesto upstream do projeto Argo, sem chart da Bitnami):
+# Instalação oficial (manifesto upstream do projeto Argo com versão fixada, sem chart da Bitnami):
 #   kubectl apply -f infrastructure/argocd/namespace.yaml
 #   kubectl apply -n argocd --server-side --force-conflicts \
-#     -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+#     -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.6/manifests/install.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
