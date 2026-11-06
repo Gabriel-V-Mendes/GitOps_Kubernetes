@@ -123,6 +123,8 @@ echo "=================================================================="
 echo "7/7 · Aplicando Applications do ArgoCD (dev e staging)"
 echo "=================================================================="
 kubectl apply -k "$ROOT_DIR/manifests/argocd"
+kubectl annotate application devops-api-dev -n argocd argocd.argoproj.io/refresh="hard" --overwrite >/dev/null 2>&1 || true
+kubectl annotate application devops-api-staging -n argocd argocd.argoproj.io/refresh="hard" --overwrite >/dev/null 2>&1 || true
 
 echo "Aguardando ArgoCD sincronizar e criar os workloads em 'dev' e 'staging'..."
 for ns in dev staging; do
