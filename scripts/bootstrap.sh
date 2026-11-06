@@ -13,8 +13,8 @@ set -euo pipefail
 
 CLUSTER_NAME="devops-lab"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_REPO_DIR="$(cd "$ROOT_DIR/.." && pwd)"
-API_IMAGE="ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-74f3e26566a1c1dc9033d18d9b6f2beddfc7eb8c"
+APP_REPO_DIR="$(cd "$ROOT_DIR/../projeto_devops" 2>/dev/null && pwd || (cd "$ROOT_DIR/.." && pwd))"
+API_IMAGE="ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-812ed49cfee329733e1ed56d5145d3a36cbb3edb"
 POSTGRES_IMAGE="postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 
 # Versões explícitas de todos os controladores de infraestrutura (reprodutibilidade)

@@ -6,7 +6,7 @@
 replicaCount: 2
 
 image:
-  tag: "sha-74f3e26566a1c1dc9033d18d9b6f2beddfc7eb8c"
+  tag: "sha-812ed49cfee329733e1ed56d5145d3a36cbb3edb"
 
 app:
   name: "DevOps API (staging)"
