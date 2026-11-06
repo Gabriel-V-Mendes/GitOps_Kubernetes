@@ -276,7 +276,7 @@ Em vez de o CI fazer commit direto na branch `main`, a atualização de imagem s
 3. **Validação na PR (incluindo CRDs reais no `kubeconform`):** antes do merge, o workflow [`ci.yml`](.github/workflows/ci.yml) (com todas as Actions fixadas por commit SHA) executa `helm lint`, verifica probes/limites, garante ausência de segredos e valida todos os **26 recursos renderizados e de infraestrutura** no **`kubeconform -strict` sem `-ignore-missing-schemas` (`Skipped: 0`)**, validando `HTTPRoute`, `ExternalSecret`, `Rollout`, `Application`, `Gateway`, `GatewayClass`, `EnvoyProxy` e `ClusterSecretStore` contra seus JSON Schemas reais versionados em [`schemas/`](schemas/). Após o merge na `main`, o ArgoCD detecta o novo commit e atualiza o cluster automaticamente.
 
 * **Evidência do CI (GitHub Actions) e de PR Automatizada de Imagem:**
-  - **Run Verde do CI:** [Run #41867699371 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/runs/41867699371) (jobs de linting, validação de schemas Kubernetes e varredura de segredos aprovados).
+  - **Run Verde do CI:** [Run #42221471943 no GitHub Actions](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/actions/runs/42221471943) (jobs de `Secret Scan & Policy` e `Helm Lint & Schema Validation` aprovados, com os 26 recursos e CRDs validados no `kubeconform -strict` sem skips).
   - **PR de Atualização de Tag (`open-image-pr.sh`):** [PR #1 (`chore(dev): update image tag to sha-8fe8a5ed30a29a4e0302d06e3fe120a9e00c6f75`)](https://github.com/Gabriel-V-Mendes/GitOps_Kubernetes/pull/1).
 
 ---
