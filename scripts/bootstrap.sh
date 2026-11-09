@@ -17,8 +17,8 @@ APP_REPO_DIR="$(cd "$ROOT_DIR/../projeto_devops" 2>/dev/null && pwd || (cd "$ROO
 API_IMAGE="ghcr.io/gabriel-v-mendes/containerizacaopipelinecicd:sha-812ed49cfee329733e1ed56d5145d3a36cbb3edb"
 POSTGRES_IMAGE="postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 
-# Versões explícitas de todos os controladores de infraestrutura (reprodutibilidade)
-ENVOY_GATEWAY_VERSION="v1.3.0"
+# Versões explícitas de todos os controladores de infraestrutura (reprodutibilidade e supply chain)
+ENVOY_GATEWAY_VERSION="v1.10.0"
 EXTERNAL_SECRETS_VERSION="2.14.0"
 ARGO_ROLLOUTS_VERSION="v1.7.2"
 ARGOCD_VERSION="v3.5.6"
@@ -62,8 +62,11 @@ kubectl wait --for=condition=Programmed gateway/shared-gateway -n envoy-gateway-
 kubectl wait --for=condition=Ready pod -l gateway.envoyproxy.io/owning-gateway-name=shared-gateway -n envoy-gateway-system --timeout=120s
 
 echo "=================================================================="
-echo "4/7 · External Secrets Operator ($EXTERNAL_SECRETS_VERSION) + SOPS"
+echo "4/7 · External Secrets Operator ($EXTERNAL_SECRETS_VERSION) + SOPS (Padrão de Lab)"
 echo "=================================================================="
+# Nota de arquitetura: zero segredos reais no Git (falsos positivos históricos no .gitleaksignore).
+# O ClusterSecretStore usa provider.kubernetes como padrão de laboratório local (lendo a semente
+# do próprio cluster). Em produção na nuvem, conecta-se a AWS Secrets Manager, GCP SM ou Vault.
 helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&1 || true
 helm repo update external-secrets >/dev/null 2>&1
 if ! helm status external-secrets -n external-secrets >/dev/null 2>&1; then

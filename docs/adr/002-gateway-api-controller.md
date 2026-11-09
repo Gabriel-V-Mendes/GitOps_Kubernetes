@@ -21,7 +21,7 @@ Antes de escolher o controller, avaliamos as 5 principais implementações da Ga
 | **Istio** (Gateway API) | Core + Mesh | Por padrão cria `LoadBalancer` por `Gateway`; exige anotações/patches manuais por Service | ~400 MB+ (`istiod` + gateways) | Nativo | Sobrecarga desnecessária sem Service Mesh |
 
 ## Decisão
-Escolhemos o **Envoy Gateway** (`v1.3.0`, distribuído via OCI chart `oci://docker.io/envoyproxy/gateway-helm`) combinado com um `Gateway` compartilhado (`shared-gateway` no namespace `envoy-gateway-system`) e rotas `HTTPRoute` por ambiente (`dev.api.local` no namespace `dev` e `staging.api.local` no namespace `staging`).
+Escolhemos o **Envoy Gateway** (`v1.10.0`, versão estável atualizada da anterior `v1.3.0`, distribuído via OCI chart `oci://docker.io/envoyproxy/gateway-helm`) combinado com um `Gateway` compartilhado (`shared-gateway` no namespace `envoy-gateway-system`) e rotas `HTTPRoute` por ambiente (`dev.api.local` no namespace `dev` e `staging.api.local` no namespace `staging`).
 
 A progressão adotada no projeto segue duas etapas:
 1. **Etapa inicial com `kubectl port-forward`:** valida diretamente o `Service` (`ClusterIP`) da API sem depender de nenhuma camada de roteamento externo.

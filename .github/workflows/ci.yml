@@ -16,7 +16,8 @@ permissions:
 
 jobs:
   # ============================================================================
-  # Garante que NENHUM segredo em texto puro ou Secret não criptografado vá ao Git
+  # Garante zero segredos reais no Git (falsos positivos históricos no .gitleaksignore)
+  # e proíbe qualquer kind: Secret não criptografado em manifests/
   # ============================================================================
   secrets:
     name: Secret Scan & Policy
@@ -89,6 +90,7 @@ jobs:
           grep -q "selfHeal: true" /tmp/argocd-apps.yaml
           grep -q "prune: true" /tmp/argocd-apps.yaml
 
+      # Schemas locais em schemas/ priorizados + catálogo da comunidade fixado por commit SHA imutável
       - name: Validar schemas Kubernetes e CRDs reais (HTTPRoute, ExternalSecret, Rollout, Application) com kubeconform
         run: |
           grep -q "kind: Rollout" /tmp/rendered-staging.yaml
@@ -101,7 +103,7 @@ jobs:
             -verbose \
             -schema-location default \
             -schema-location '/repo/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/49729e49e8f062933e3716a26540d41b0cd0856c/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /rendered/rendered-dev.yaml \
             /rendered/rendered-staging.yaml \
             /rendered/argocd-apps.yaml \

@@ -25,7 +25,7 @@ drift: ## Demonstra drift manual no cluster e o ArgoCD corrigindo (self-heal)
 canary: ## Demonstra o desafio opcional Argo Rollouts Canary (20% -> 50% -> 100%) na Gateway API
 	./scripts/demo-canary.sh
 
-lint: ## Valida o Helm chart (values-dev e values-staging), kustomize do ArgoCD e schemas reais (incluindo CRDs) no kubeconform
+lint: ## Valida Helm chart, kustomize do ArgoCD e schemas reais (CRDs locais + catálogo comunitário fixado por commit SHA) no kubeconform
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-dev.yaml
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml -f $(CHART_DIR)/values-staging.yaml
 	helm lint $(CHART_DIR) -f $(CHART_DIR)/values.yaml --set rollout.enabled=true
@@ -36,12 +36,12 @@ lint: ## Valida o Helm chart (values-dev e values-staging), kustomize do ArgoCD 
 		-strict -summary -verbose \
 		-schema-location default \
 		-schema-location '/repo/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-		-schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+		-schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/49729e49e8f062933e3716a26540d41b0cd0856c/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
 		/rendered/rendered-dev.yaml /rendered/rendered-staging.yaml /rendered/argocd-apps.yaml \
 		/repo/infrastructure/gateway/envoy-gateway.yaml /repo/infrastructure/external-secrets/cluster-secret-store.yaml
 	@echo "✅ Helm chart, CRDs (HTTPRoute, ExternalSecret, Rollout, Application) e manifests ArgoCD válidos!"
 
-secrets: ## Verifica com Gitleaks que nenhum segredo em texto puro entrou no Git
+secrets: ## Verifica Gitleaks em todo o histórico (zero segredos reais; falsos positivos históricos listados no .gitleaksignore)
 	docker run --rm -v "$$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose --exit-code 1
 
 status: ## Mostra o estado das Applications no ArgoCD, Gateway e Pods em dev/staging

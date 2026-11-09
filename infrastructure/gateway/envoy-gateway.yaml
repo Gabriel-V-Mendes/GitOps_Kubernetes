@@ -9,7 +9,7 @@
 #
 # Pré-requisito (executado pelo `make bootstrap`):
 #   helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
-#     --version v1.3.0 -n envoy-gateway-system --create-namespace --wait
+#     --version v1.10.0 -n envoy-gateway-system --create-namespace --wait
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
